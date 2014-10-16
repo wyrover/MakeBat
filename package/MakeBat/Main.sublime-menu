@@ -1,0 +1,13 @@
+[
+    {
+        "caption": "Tools",
+        "mnemonic": "T",
+        "id": "tools",
+        "children":
+        [
+            { "caption": "-" },
+            { "caption": "Select and Build", "command": "build", "args": {"variant": "SelectBuild"} },
+            { "caption": "Compile", "command": "build", "args": {"variant": "Compile"} }
+        ]
+    }
+]

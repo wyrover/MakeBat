@@ -1,0 +1,5 @@
+- First search temlate in current folder
+- Process #define/#ifdef
+- Vars CL_PARAMS, LINK_PARAMS, RC_PARAMS in sources
+- G++ support
+- Может вместо .makebat хранить имя шаблона прямо в исходном файле?
