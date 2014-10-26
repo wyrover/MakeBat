@@ -1,5 +1,6 @@
-- First search temlate in current folder
 - Process #define/#ifdef
 - Vars CL_PARAMS, LINK_PARAMS, RC_PARAMS in sources
+- Возможность из окна selector копировать шаблон в папку исходника, с заданием нового имени
 - G++ support
-- Может вместо .makebat хранить имя шаблона прямо в исходном файле?
+- Make make.bat-file from VC Project
+- Convert make.bat-file to VC Project

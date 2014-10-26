@@ -201,7 +201,10 @@ private:
             do
             {
                 if (!(finder.IsDots() || finder.IsDirectory()))
-                    lb.AddString(TrimTemplateExt(finder.GetFileName()));
+                {
+                    CString s(TrimTemplateExt(finder.GetFileName()));
+                    lb.AddString(s);
+                }
             } while (finder.FindNextFile());
         }
 
@@ -212,7 +215,14 @@ private:
             do
             {
                 if (!(finder.IsDots() || finder.IsDirectory()))
-                    lb.AddString(TrimTemplateExt(finder.GetFileName()));
+                {
+                    CString s(TrimTemplateExt(finder.GetFileName()));
+                    // Проверяем на дубликат, так как в папке исходника может быть шаблон с именем,
+                    // с которым есть и в папке шаблонов. Использоваться все равно будет тот что в
+                    // папке исходников, так как не используется полный путь к шаблону а только название
+                    if (lb.FindStringExact(0, s) == LB_ERR)
+                        lb.AddString(s);
+                }
             } while (finder.FindNextFile());
         }
 

@@ -202,7 +202,7 @@ const char REGEX_TEMPLATE_NAME[] = "MakeBat-Template:[ \\t]*\"([^\\t:*?\"<>|\\r\
 
 const char REGEX_INCLUDE_PATH[] = "^[ \\t]*//[ \\t]*INCLUDE_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
 const char REGEX_LIB_PATH[]     = "^[ \\t]*//[ \\t]*LIB_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
-const char REGEX_LIB[]          = "^[ \\t]*#pragma[ \\t]+comment[ \\t]*\\([ \\t]*lib[ \\t]*,[ \\t]*\"(\\w+\\.lib)\"[ \\t]*\\)[ \\t]*";
+const char REGEX_LIB[]          = "^[ \\t]*\\#pragma[ \\t]+comment[ \\t]*\\([ \\t]*lib[ \\t]*,[ \\t]*\"(\\w+\\.lib)\"[ \\t]*\\)[ \\t]*";
 const char REGEX_SOURCE[]       = "^[ \\t]*//[ \\t]*ADD_SOURCE:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
 const char REGEX_RESOURCE[]     = "^[ \\t]*//[ \\t]*ADD_RESOURCE:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
 
@@ -210,7 +210,7 @@ const char VAR_INCLUDE_PATHS[] = "{INCLUDE_PATHS}";
 const char VAR_LIB_PATHS[]     = "{LIB_PATHS}";
 const char VAR_LIBS[]          = "{LIBS}";
 const char VAR_SOURCES[]       = "{SOURCES}";
-const char VAR_RESOURCES[]            = "{RESOURCES}";
+const char VAR_RESOURCES[]     = "{RESOURCES}";
 
 enum
 {
