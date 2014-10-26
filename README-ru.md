@@ -11,11 +11,11 @@ MakeBat
 - `// ADD_SOURCE: "name.cpp"`
 
 Переменные шаблона:
-- `{INCLUDE_PATHS}` -> /I "Path1" /I "Path2" ...
-- `{LIB_PATHS}`     -> /LIBPATH:"Path1" /LIBPATH:"Path2" ...
-- `{LIBS}`          -> "file1.lib" "file2.lib" ...
-- `{RC}`            -> "file1.rc" "file2.rc" ...
-- `{SOURCES}`       -> "file1.cpp" "file2.cpp" "file1.res" "file2.res" ...
+- `{INCLUDE_PATHS} → /I "Path1" /I "Path2" ...`
+- `{LIB_PATHS}     → /LIBPATH:"Path1" /LIBPATH:"Path2" ...`
+- `{LIBS}          → "file1.lib" "file2.lib" ...`
+- `{RC}            → "file1.rc" "file2.rc" ...`
+- `{SOURCES}       → "file1.cpp" "file2.cpp" "file1.res" "file2.res" ...`
 
 Установка
 ---------
