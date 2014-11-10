@@ -1,4 +1,4 @@
-// INCLUDE_PATH: "wtl"
+// INCLUDE_PATH: "3rd\wtl"
 // ADD_RESOURCE: "selector.rc"
 
 #include <regex>
@@ -8,11 +8,11 @@
 #define _WIN32_IE     0x0501
 #define _RICHEDIT_VER 0x0200
 
-#if defined _M_IX86
+#if     defined _M_IX86
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#elif defined _M_IA64
+#elif   defined _M_IA64
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='ia64' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#elif defined _M_X64
+#elif   defined _M_X64
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #else
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
@@ -33,13 +33,15 @@
 #include <ATLWFILE.h>
 #include <ATLWINMISC.h>
 
-#include "selector_resource.h"
+#include "selector_rc.h"
 
 //
 // Defs
 //
 
-enum RESULT
+#define Trace(msg) OutputDebugString(msg)
+
+enum
 {
     RESULT_OK = 0,
     RESULT_CANCEL,
@@ -56,14 +58,15 @@ const TCHAR *RESULT_MESSAGE[] =
 };
 
 const TCHAR TEMPLATES_SUB_FOLDER[] = _T("templates\\");
-const TCHAR TEMPLATE_EXT[] = _T(".bat.template");
-const TCHAR INI_FILENAME[] = _T("selector.ini");
+const TCHAR TEMPLATE_EXT[] =         _T(".bat-template");
+const TCHAR MAKEBAT_EXT[] =          _T("-make.bat");
+const TCHAR INI_FILENAME[] =         _T("selector.ini");
 
 //
 // App Core
 //
 
-const TCHAR REGEX_TEMPLATE_NAME[] = _T("MakeBat-Template:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*");
+const TCHAR REGEX_TEMPLATE_NAME[] = _T("MakeBat-Template[ \\t]*:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*");
 
 TCHAR *templateNameStoreFileName;
 CAppModule _Module;
@@ -78,8 +81,16 @@ public:
 
     virtual BOOL PreTranslateMessage(MSG* pMsg)
     {
-        if (pMsg->message == WM_KEYDOWN && pMsg->wParam == VK_RETURN)
-            ProcessSelectedTemplate();
+        if (pMsg->message == WM_KEYDOWN)
+        {
+            if (pMsg->wParam == VK_RETURN)
+                ProcessSelectedTemplate();
+            if (pMsg->wParam == VK_F2)
+            {
+                if (TryCopyStandartTemplate())
+                    InitFilesList();
+            }
+        }
         return CWindow::IsDialogMessage(pMsg);
     }
 
@@ -183,9 +194,23 @@ private:
     CString& TrimTemplateExt(CString &templateName)
     {
         int newSize = templateName.GetLength() - _countof(TEMPLATE_EXT) + 1;
-        templateName.GetBufferSetLength(newSize);
-        templateName.ReleaseBuffer();
+        if (newSize >= 0)
+        {
+            templateName.GetBufferSetLength(newSize);
+            templateName.ReleaseBuffer();
+        }
         return templateName;
+    }
+
+    CString& TrimMakeBatExt(CString &makeBatFileName)
+    {
+        int newSize = makeBatFileName.GetLength() - _countof(MAKEBAT_EXT) + 1;
+        if (newSize >= 0)
+        {
+            makeBatFileName.GetBufferSetLength(newSize);
+            makeBatFileName.ReleaseBuffer();
+        }
+        return makeBatFileName;
     }
 
     void InitFilesList()
@@ -203,7 +228,9 @@ private:
                 if (!(finder.IsDots() || finder.IsDirectory()))
                 {
                     CString s(TrimTemplateExt(finder.GetFileName()));
-                    lb.AddString(s);
+                    s = _T("* ") + s;
+                    if (lb.FindStringExact(0, s) == LB_ERR)
+                        lb.AddString(s);
                 }
             } while (finder.FindNextFile());
         }
@@ -228,48 +255,81 @@ private:
 
         if (lb.GetCount() > 0)
         {
-            CFile file;
-            ::OutputDebugString(templateNameStoreFileName);
-            if (file.Open(templateNameStoreFileName))
-            {
-                DWORD size = file.GetSize();
-                // TODO Dont use std::string and std::regex
-                std::string buff;
-                buff.resize(size);
-                if (file.Read(&buff[0], size))
-                {
-#ifdef _UNICODE
-                    ATL::CA2W wbuff(buff.c_str());
-                    CString s(wbuff);
-#else
-                    CString s(buff.c_str());
-#endif
-                    //::OutputDebugString(s);
-                    std::basic_string<TCHAR> s_(s);
-#ifdef _UNICODE
-                    std::wsmatch m;
-                    std::wregex r(REGEX_TEMPLATE_NAME);
-#else
-                    std::smatch m;
-                    std::regex(REGEX_TEMPLATE_NAME);
-#endif
-                    if (std::regex_search(s_, m, r) && m.size() == 2)
-                    {
-                        s_ = m[1];
-                        s = s_.c_str();
-                        //TrimTemplateExt(s);
-                        int index = lb.FindStringExact(0, s);
-                        if (index != LB_ERR)
-                            lb.SetCurSel(index);
-                        // TODO Error: Current template name is invalid
-                    }
-                }
-            }
+            bool selected;
+            CString name(FindTemplateNameInMakeBatContent(ReadMakeBatContent(CString(templateNameStoreFileName))));
+            if (!name.IsEmpty())
+                selected = TrySelectTemplateInList(_T("* ") + name) || TrySelectTemplateInList(name);
         }
     }
 
-    void ProcessSelectedTemplate()
+    CString ReadMakeBatContent(CString &path)
     {
+        if (!path.IsEmpty())
+        {
+            CFile file;
+            if (file.Open(path))
+            {
+                DWORD size = file.GetSize();
+                if (size > 1024)
+                    size = 1024;  // TODO Magic number
+                char buff[1024];
+
+                if (file.Read(buff, size))
+                {
+                    #ifdef _UNICODE
+                        ATL::CA2W wbuff(buff);
+                        return CString(wbuff);
+                    #else
+                        return CString(buff);
+                    #endif
+                }
+            }
+        }
+        return CString();
+    }
+
+    CString FindTemplateNameInMakeBatContent(CString &content)
+    {
+        if (!content.IsEmpty())
+        {
+            // TODO Dont use std::string and std::regex
+            #ifdef _UNICODE
+                std::wstring s_(content);
+                std::wsmatch m;
+                std::wregex r(REGEX_TEMPLATE_NAME);
+            #else
+                std::string s_(content);
+                std::smatch m;
+                std::regex r(REGEX_TEMPLATE_NAME);
+            #endif
+            if (std::regex_search(s_, m, r) && m.size() == 2)
+            {
+                s_ = m[1];
+                return CString(s_.c_str());
+            }
+        }
+        return CString();
+    }
+
+    bool TrySelectTemplateInList(CString &name)
+    {
+        CListBox lb(GetDlgItem(IDC_FILES));
+        if (lb.GetCount() > 0)
+        {
+            int index = lb.FindStringExact(0, name);
+            if (index != LB_ERR)
+            {
+                lb.SetCurSel(index);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    CString GetSelected(bool *isStandart = NULL)
+    {
+        if (isStandart)
+            *isStandart = false;
         CListBox lb(GetDlgItem(IDC_FILES));
         int index = lb.GetCurSel();
         if (index >= 0)
@@ -279,17 +339,41 @@ private:
             s.ReleaseBuffer();
             if (!s.IsEmpty())
             {
+                bool b = s[0] == _T('*');
+                if (b)
+                {
+                    s.SetAt(0, _T(' '));
+                    s.TrimLeft();
+                }
+                if (isStandart)
+                    *isStandart = !b;
+                return s;
+            }
+        }
+        return CString();
+    }
+
+    void ProcessSelectedTemplate()
+    {
+        CListBox lb(GetDlgItem(IDC_FILES));
+        int index = lb.GetCurSel();
+        if (index >= 0)
+        {
+            CString s(GetSelected());
+            if (!s.IsEmpty())
+            {
                 s = _T("rem MakeBat-Template: \"") + s + _T("\"\n");
 
                 CFile file;
-#ifdef _UNICODE
-                ATL::CW2A asci(s);
-                if (file.Create(templateNameStoreFileName) && file.Write(asci, strlen(asci)))
-#else
-                if (file.Create(templateNameStoreFileName) && file.Write(s, s.GetLength()))
-#endif
-
+                #ifdef _UNICODE
+                    ATL::CW2A asci(s);
+                    if (file.Create(templateNameStoreFileName) && file.Write(asci, strlen(asci)))
+                #else
+                    if (file.Create(templateNameStoreFileName) && file.Write(s, s.GetLength()))
+                #endif
+                {
                     CloseDialog(RESULT_OK);
+                }
                 else
                 {
                     ::MessageBox(NULL, RESULT_MESSAGE[RESULT_ERROR_CANT_CREATE_TEMPLATE_NAME_STORE], _T("Error"), MB_ICONERROR | MB_OK);
@@ -297,6 +381,38 @@ private:
                 }
             }
         }
+    }
+
+    CString TemplateNameToPath(CString &name, bool isStandart)
+    {
+        if (!name.IsEmpty())
+        {
+            if (isStandart)
+            {
+                CModulePath path;
+                return CString(path + TEMPLATES_SUB_FOLDER + name + TEMPLATE_EXT);
+            }
+            else
+                return CString(name + TEMPLATE_EXT);
+        }
+        return CString();
+    }
+
+    bool TryCopyStandartTemplate()
+    {
+        bool isStandart;
+        CString stdName(GetSelected(&isStandart));
+        if (!stdName.IsEmpty() && isStandart)
+        {
+            CString stdPath = TemplateNameToPath(stdName, true);
+            if (!stdPath.IsEmpty())
+            {
+                CString pathTo(TrimMakeBatExt(CString(templateNameStoreFileName)) + _T(" - ") + stdName);
+                pathTo = TemplateNameToPath(pathTo, false);
+                return !pathTo.IsEmpty() && CopyFile(stdPath, pathTo, FALSE);  // TODO Rewrite MsgBox!
+            }
+        }
+        return false;
     }
 };
 

@@ -6,6 +6,9 @@
         "children":
         [
             { "caption": "-" },
+            { "caption": "Utils - AStyle", "command": "build", "args": {"variant": "Utils_AStyle"} },
+            { "caption": "Utils - Tab to spaces", "command": "build", "args": {"variant": "Utils_TabToSpaces"} },
+            { "caption": "-" },
             { "caption": "Select and Build", "command": "build", "args": {"variant": "SelectBuild"} },
             { "caption": "Compile", "command": "build", "args": {"variant": "Compile"} }
         ]

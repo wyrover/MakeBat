@@ -1,13 +1,38 @@
 #include "windows.h"
-#include "selector_resource.h"
+#include "selector_rc.h"
 
 IDD_MAINDLG DIALOGEX 0,0,177,156
-CAPTION "Makebat template selector"
+CAPTION "MakeBat Template Selector"
 FONT 8,"MS Shell Dlg",0,0,0
 STYLE WS_VISIBLE|WS_CAPTION|WS_SYSMENU|WS_THICKFRAME|DS_CENTER
 EXSTYLE WS_EX_TOOLWINDOW
 BEGIN
-  CONTROL "",IDC_FILES,"ListBox",WS_CHILDWINDOW|WS_VISIBLE|WS_VSCROLL|LBS_NOINTEGRALHEIGHT|LBS_HASSTRINGS|LBS_SORT|LBS_NOTIFY,6,15,165,135,WS_EX_CLIENTEDGE
-  CONTROL "Select template and press Enter or use DbClick.", IDC_STC_NOTE, "Static", WS_CHILDWINDOW | WS_VISIBLE, 6, 3, 165, 9
+  CONTROL "",IDC_FILES,"ListBox",WS_CHILDWINDOW|WS_VISIBLE|WS_VSCROLL|LBS_NOINTEGRALHEIGHT|LBS_HASSTRINGS|LBS_SORT|LBS_NOTIFY,6,6,165,145,WS_EX_CLIENTEDGE
+END
+
+1 VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEOS 0x00000004
+FILETYPE 0x00000001
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904B0"
+    BEGIN
+      VALUE "CompanyName", "Ruslan Zaporojets\0"
+      VALUE "FileDescription", "Template selector\0"
+      VALUE "FileVersion", "1.0\0"
+      VALUE "InternalName", "selector\0"
+      VALUE "LegalCopyright", "Copyright (C) 2014 Ruslan Zaporojets\0"
+      VALUE "OriginalFilename", "selector.exe\0"
+      VALUE "ProductName", "MakeBat\0"
+      VALUE "ProductVersion", "1.0\0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 0x04B0
+  END
 END
 

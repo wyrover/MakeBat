@@ -6,7 +6,7 @@
 
     "shell_cmd": "%MAKEBAT_EXE% \"${file_name}\" && \"$file.make.bat\"" ,
     "file_regex": "^(...*?)[(]([0-9]*),([0-9]*)[)]",
-    "selector": "source.c, source.c++, source.cpp",
+    "selector": "source.c, source.c++, source.cpp, source.cc, source.cxx",
     "working_dir": "${file_path}",
     "variants":
     [
@@ -21,6 +21,14 @@
         {
             "name": "Run",
             "shell_cmd": "\"${file_path}\\\\${file_base_name}.exe\""
+        },
+        {
+            "name": "Utils_AStyle",
+            "shell_cmd": "AStyle.exe -A1 -s4 -S -w -Y -m0 -M120 -p -H -U -k3 -W3 -xj -c -xy -Z -z1 \"${file}\" & del *.orig"
+        },
+        {
+            "name": "Utils_TabToSpaces",
+            "shell_cmd": "substi.exe -nobackup \"${file}\" \\t \"    \""
         }
     ]
 }

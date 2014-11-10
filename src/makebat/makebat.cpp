@@ -1,9 +1,10 @@
 //
-// Project: batmake
+// Project: MakeBat
 // Date:    2014-02-17
 // Author:  Ruzzz | ruzzzua[]gmail.com
 //
 
+// ADD_RESOURCE: "makebat.rc"
 // TODO Compile as UNICODE !!!
 
 #include <io.h>     // _access
@@ -185,20 +186,20 @@ bool writeString(const char *fileName, const string &content)
 
 const char USAGE[] =
 {
-    "Create make-bat for c/cpp file\n"
-    "Usage: makebat cpp-file [-t]\n"
+    "Create -make.bat uses template file\n"
+    "Usage: makebat source-file [-t]\n"
     "Option '-t' - run selector before make.\n"
 };
 
 const char TEMPLATE_SELECTOR_FILENAME[] = "selector.exe";
 const char TEMPLATES_SUB_FOLDER[] = "templates\\";
-const char TEMPLATE_EXT[] = ".bat.template";
-const char DEFAULT_MAKE_EXT[] = ".make.bat";
+const char TEMPLATE_EXT[] = ".bat-template";
+const char DEFAULT_MAKE_EXT[] = "-make.bat";
 const int SELECTOR_OK = 0;
 const int SELECTOR_CANCEL = 1;
 
 // TODO Invalid chars "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\\/:*?\"<>|"
-const char REGEX_TEMPLATE_NAME[] = "MakeBat-Template:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+const char REGEX_TEMPLATE_NAME[] = "MakeBat-Template[ \\t]*:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
 
 const char REGEX_INCLUDE_PATH[] = "^[ \\t]*//[ \\t]*INCLUDE_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
 const char REGEX_LIB_PATH[]     = "^[ \\t]*//[ \\t]*LIB_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
@@ -228,16 +229,16 @@ enum
 
 const char *MESSAGE[] =
 {
-    "OK! Write make-bat file to ",
-    "User cancel making in selector.",
+    "Created: ",
+    "User cancel.",
     "Internal error: ",
-    "Error: Cannot run selector: ",
-    "Error: Cannot read make-bat file: ",
-    "Error: Make-bat file does not contain 'MakeBat-Template': ",
-    "Error: Cannot read source file: ",
-    "Error: Cannot read template file: ",
-    "Error: Cannot write make-bat file: ",
-    "Error: Template does not contain tag {SOURCES}: "
+    "Error. Cannot run selector: ",
+    "Error. Cannot read make-bat file: ",
+    "Error. Make-bat file does not contain 'MakeBat-Template': ",
+    "Error. Cannot read source file: ",
+    "Error. Cannot read template file: ",
+    "Error. Cannot write make-bat file: ",
+    "Error. Template does not contain tag {SOURCES}: "
 };
 
 typedef void (*TParserFunc)(string &result, const string &element);
@@ -311,7 +312,7 @@ return false;
 
 int main(int argc, char const *argv[])
 {
-    cout << "makebat v0.4a [2014/10/10] by Ruzzz\n";
+    cout << "MakeBat v0.5a [2014/11/10] by Ruslan Zaporojets\n";
 
     if (argc < 2 || argc > 3 || (argc == 3 && !CHECK_ARG__T))
     {
@@ -372,7 +373,7 @@ int main(int argc, char const *argv[])
         string templateFileNameInTemplate = getTemplateNameFromMakeBat(templateContent);
         if (templateFileNameInTemplate.empty() || templateFileNameInTemplate != templateFileName)
         {
-            string s("rem MakeBat-Template: \"" + templateFileName + "\"\n");
+            string s("@rem MakeBat-Template: \"" + templateFileName + "\"\n");
             templateContent = s + templateContent;
         }
 

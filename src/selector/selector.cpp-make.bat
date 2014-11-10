@@ -1,4 +1,4 @@
-rem MakeBat-Template: "selector-VC2013-32-Win-Uni-XP"
+@rem MakeBat-Template: "selector"
 @echo off
 
 :: Base
@@ -22,4 +22,4 @@ if errorlevel 1 goto :EOF
 )
 
 ::Compile
-cl.exe %CL_PARAMS% /I "wtl" "selector.cpp" "selector.res"  %LINK_PARAMS%  && del *.obj && del *.res
+cl.exe %CL_PARAMS% /I "3rd\wtl" "selector.cpp" "selector.res"  %LINK_PARAMS%  && del *.obj && del *.res

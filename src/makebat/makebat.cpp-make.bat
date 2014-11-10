@@ -1,4 +1,4 @@
-rem MakeBat-Template: "VC++ 2013 32bit Console XP"
+@rem MakeBat-Template: "cl con xp"
 @echo off
 
 :: Base
@@ -16,10 +16,10 @@ call vcvarsall.bat x86
 if errorlevel 1 goto :EOF
 
 :: Resources
-FOR %%a IN () DO (
+FOR %%a IN ("makebat.rc") DO (
 rc.exe /D NDEBUG %%a
 if errorlevel 1 goto :EOF
 )
 
 ::Compile
-cl.exe %CL_PARAMS%  "makebat.cpp" "shell32.lib" %LINK_PARAMS%  && del *.obj && del *.res
+cl.exe %CL_PARAMS%  "makebat.cpp" "makebat.res" "shell32.lib" %LINK_PARAMS%  && del *.obj && del *.res
