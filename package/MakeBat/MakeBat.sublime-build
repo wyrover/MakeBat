@@ -4,7 +4,7 @@
         "MAKEBAT_EXE" : "\"%AppData%\\Sublime Text 3\\Packages\\MakeBat\\makebat.exe\""
     },
 
-    "shell_cmd": "%MAKEBAT_EXE% \"${file_name}\" && \"$file.make.bat\"" ,
+    "shell_cmd": "%MAKEBAT_EXE% \"${file_name}\" && \"$file-make.bat\"" ,
     "file_regex": "^(...*?)[(]([0-9]*),([0-9]*)[)]",
     "selector": "source.c, source.c++, source.cpp, source.cc, source.cxx",
     "working_dir": "${file_path}",
@@ -12,11 +12,11 @@
     [
         {
             "name": "SelectBuild",
-            "shell_cmd": "%MAKEBAT_EXE% \"$file\" -t && \"$file.make.bat\""
+            "shell_cmd": "%MAKEBAT_EXE% \"$file\" -t && \"$file-make.bat\""
         },
         {
             "name": "Compile",
-            "shell_cmd": "\"$file.make.bat\""
+            "shell_cmd": "\"$file-make.bat\""
         },
         {
             "name": "Run",
