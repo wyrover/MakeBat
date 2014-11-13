@@ -1,5 +1,12 @@
+//
+// Project: MakeBat
+// Date:    2014-02-17
+// Author:  Ruslan Zaporojets | ruzzzua[]gmail.com
+//
+
 // INCLUDE_PATH: "3rd\wtl"
 // ADD_RESOURCE: "selector.rc"
+// CL_PARAMS: "/O1"
 
 #include <regex>
 
@@ -7,16 +14,6 @@
 #define _WIN32_WINNT  0x0501
 #define _WIN32_IE     0x0501
 #define _RICHEDIT_VER 0x0200
-
-#if     defined _M_IX86
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#elif   defined _M_IA64
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='ia64' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#elif   defined _M_X64
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#else
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#endif
 
 #ifndef STRICT
 #define STRICT
@@ -34,416 +31,384 @@
 #include <ATLWINMISC.h>
 
 #include "selector_rc.h"
-
-//
-// Defs
-//
-
-#define Trace(msg) OutputDebugString(msg)
-
-enum
-{
-    RESULT_OK = 0,
-    RESULT_CANCEL,
-    RESULT_ERROR_EMPTY_PARAM_TEMPLATE_NAME_STORE,
-    RESULT_ERROR_CANT_CREATE_TEMPLATE_NAME_STORE
-};
-
-const TCHAR *RESULT_MESSAGE[] =
-{
-    _T(""),
-    _T(""),
-    _T("Set command line param for template name store file"),
-    _T("Cannot create template name store file")
-};
-
-const TCHAR TEMPLATES_SUB_FOLDER[] = _T("templates\\");
-const TCHAR TEMPLATE_EXT[] =         _T(".bat-template");
-const TCHAR MAKEBAT_EXT[] =          _T("-make.bat");
-const TCHAR INI_FILENAME[] =         _T("selector.ini");
+#include "selector.h"
 
 //
 // App Core
 //
 
-const TCHAR REGEX_TEMPLATE_NAME[] = _T("MakeBat-Template[ \\t]*:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*");
-
-TCHAR *templateNameStoreFileName;
+TCHAR *templateStoreFileName;
 CAppModule _Module;
 
-class CMainDlg :
-    public CDialogImpl<CMainDlg>,
-    public CDialogResize<CMainDlg>,
-    public CMessageFilter
-{
-public:
-    enum { IDD = IDD_MAINDLG };
+//
+// CMainDlg
+//
 
-    virtual BOOL PreTranslateMessage(MSG* pMsg)
+BOOL CMainDlg::PreTranslateMessage(MSG* pMsg)
+{
+    if (pMsg->message == WM_KEYDOWN)
     {
-        if (pMsg->message == WM_KEYDOWN)
+        if (lbTemplates.IsWindowVisible())
         {
             if (pMsg->wParam == VK_RETURN)
                 ProcessSelectedTemplate();
-            if (pMsg->wParam == VK_F2)
+            else if (pMsg->wParam == VK_F2)
             {
                 if (TryCopyStandartTemplate())
-                    InitFilesList();
+                {
+                    CString prevSelected = GetSelectedFull();
+                    ReadTemplatesList(false);
+                    TrySelectTemplateInList(prevSelected);
+                }
             }
         }
-        return CWindow::IsDialogMessage(pMsg);
+
+        if (pMsg->wParam == VK_F1)
+        {
+            BOOL b = edHelp.IsWindowVisible();
+            edHelp.ShowWindow(b ? SW_HIDE : SW_SHOW);
+            lbTemplates.ShowWindow(!b ? SW_HIDE : SW_SHOW);
+        }
     }
+    return CWindow::IsDialogMessage(pMsg);
+};
 
-    BEGIN_DLGRESIZE_MAP(CMainDlg)
-        DLGRESIZE_CONTROL(IDC_FILES, DLSZ_SIZE_X | DLSZ_SIZE_Y)
-    END_DLGRESIZE_MAP()
+LRESULT CMainDlg::OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+{
+    CMessageLoop* pLoop = _Module.GetMessageLoop();
+    pLoop->AddMessageFilter(this);
+    //pLoop->AddIdleHandler(this);
+    ATLASSERT(pLoop != NULL);
+    DlgResize_Init();
 
-    BEGIN_MSG_MAP(CMainDlg)
-        CHAIN_MSG_MAP(CDialogResize<CMainDlg>)
-        MESSAGE_HANDLER(WM_INITDIALOG, OnInitDialog)
-        MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
-        MESSAGE_HANDLER(WM_ACTIVATE, OnActivate)
-        COMMAND_ID_HANDLER(IDCANCEL, OnCancel)
-        COMMAND_ID_HANDLER(IDC_FILES, OnFilesListNotify)
-    END_MSG_MAP()
+    CModulePath path;
+    iniFileName = path;
+    iniFileName += INI_FILENAME;
 
-    // Handler prototypes (uncomment arguments if needed):
-    //    LRESULT MessageHandler(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
-    //    LRESULT CommandHandler(WORD /*wNotifyCode*/, WORD /*wID*/, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
-    //    LRESULT NotifyHandler(int /*idCtrl*/, LPNMHDR /*pnmh*/, BOOL& /*bHandled*/)
+    lbTemplates.Attach(GetDlgItem(IDC_TEMPLATES));
 
-private:
-    CString iniFileName;
+    helpMsgFont.CreateFont(14, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+        FIXED_PITCH | FF_MODERN, _T("Courier New"));
+    edHelp.Attach(GetDlgItem(IDC_HELP_MSG));
+    edHelp.ShowWindow(SW_HIDE);
+    edHelp.SetFont(helpMsgFont);
+    edHelp.SetWindowText(HELP_STR);
 
-    LRESULT OnInitDialog(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
-    {
-        CMessageLoop* pLoop = _Module.GetMessageLoop();
-        pLoop->AddMessageFilter(this);
-        //pLoop->AddIdleHandler(this);
-        ATLASSERT(pLoop != NULL);
-        DlgResize_Init();
+    LoadIni();  // And set size of window
+    CenterWindow();
 
-        CModulePath path;
-        iniFileName = path;
-        iniFileName += INI_FILENAME;
-        LoadIni();  // And set size of window
-        CenterWindow();
+    ReadTemplatesList();
+    return TRUE;
+};
 
-        InitFilesList();
-        return TRUE;
-    }
+LRESULT CMainDlg::OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+{
+    LOG(L"OnDestroy");
+    CMessageLoop* pLoop = _Module.GetMessageLoop();
+    ATLASSERT(pLoop != NULL);
+    pLoop->RemoveMessageFilter(this);
+    return 0;
+};
 
-    LRESULT OnDestroy(UINT /*uMsg*/, WPARAM /*wParam*/, LPARAM /*lParam*/, BOOL& /*bHandled*/)
-    {
-        CMessageLoop* pLoop = _Module.GetMessageLoop();
-        ATLASSERT(pLoop != NULL);
-        pLoop->RemoveMessageFilter(this);
-        return 0;
-    }
-
-    LRESULT OnActivate(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& /*bHandled*/)
-    {
-        if (wParam == WA_INACTIVE)
-            CloseDialog(RESULT_CANCEL);
-        return 0;
-    }
-
-    LRESULT OnCancel(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
-    {
+LRESULT CMainDlg::OnActivate(UINT /*uMsg*/, WPARAM wParam, LPARAM /*lParam*/, BOOL& /*bHandled*/)
+{
+    if (wParam == WA_INACTIVE)
         CloseDialog(RESULT_CANCEL);
-        return 0;
-    }
+    return 0;
+};
 
-    LRESULT OnFilesListNotify(WORD wNotifyCode, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
-    {
-        if (wNotifyCode == LBN_DBLCLK)
-            ProcessSelectedTemplate();
-        return 0;
-    }
+LRESULT CMainDlg::OnCancel(WORD /*wNotifyCode*/, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+{
+    LOG(L"OnCancel");
+    CloseDialog(RESULT_CANCEL);
+    return 0;
+};
 
-    void CloseDialog(int nVal)
+LRESULT CMainDlg::OnFilesListNotify(WORD wNotifyCode, WORD wID, HWND /*hWndCtl*/, BOOL& /*bHandled*/)
+{
+    if (wNotifyCode == LBN_DBLCLK)
+        ProcessSelectedTemplate();
+    return 0;
+};
+
+void CMainDlg::CloseDialog(int code)
+{
+    LOG(L"CloseDialog");
+
+    static bool close = false;  // TODO
+    if (!close)
     {
         SaveIni();
-        DestroyWindow();
-        ::PostQuitMessage(nVal);
+        close = true;
+        if (!(code == RESULT_OK) || (code == RESULT_CANCEL))
+            ShowError(code);
     }
 
-    void SaveIni()
+    DestroyWindow();
+    ::PostQuitMessage(code);
+};
+
+void CMainDlg::SaveIni()
+{
+    LOG(L"SaveIni");
+    CWindowPlacement pd;
+    pd.GetPosData(m_hWnd);
+    RECT rc = pd.rcNormalPosition;
+    CIniFile ini;
+    ini.SetFilename(iniFileName);
+    ini.PutInt(_T("Main"), _T("Width"), rc.right - rc.left);
+    ini.PutInt(_T("Main"), _T("Height"), rc.bottom - rc.top);
+};
+
+void CMainDlg::LoadIni()
+{
+    LOG(L"LoadIni");
+    CIniFile ini;
+    ini.SetFilename(iniFileName);
+    int cx, cy;
+    ini.GetInt(_T("Main"), _T("Width"), cx, 300);
+    ini.GetInt(_T("Main"), _T("Height"), cy, 400);
+    SetWindowPos(NULL, 0, 0, cx, cy, SWP_NOMOVE);
+};
+
+CString& CMainDlg::TrimTemplateExt(CString &templateName)
+{
+    int newSize = templateName.GetLength() - _countof(TEMPLATE_EXT) + 1;
+    if (newSize >= 0)
     {
-        CWindowPlacement pd;
-        pd.GetPosData(m_hWnd);
-        RECT rc = pd.rcNormalPosition;
-        CIniFile ini;
-        ini.SetFilename(iniFileName);
-        ini.PutInt(_T("Main"), _T("Width"), rc.right - rc.left);
-        ini.PutInt(_T("Main"), _T("Height"), rc.bottom - rc.top);
+        templateName.GetBufferSetLength(newSize);
+        templateName.ReleaseBuffer();
     }
+    return templateName;
+};
 
-    void LoadIni()
+CString& CMainDlg::TrimMakeBatExt(CString &makeBatFileName)
+{
+    int newSize = makeBatFileName.GetLength() - _countof(MAKEBAT_EXT) + 1;
+    if (newSize >= 0)
     {
-        CIniFile ini;
-        ini.SetFilename(iniFileName);
-        int cx, cy;
-        ini.GetInt(_T("Main"), _T("Width"), cx, 300);
-        ini.GetInt(_T("Main"), _T("Height"), cy, 400);
-        SetWindowPos(NULL, 0, 0, cx, cy, SWP_NOMOVE);
+        makeBatFileName.GetBufferSetLength(newSize);
+        makeBatFileName.ReleaseBuffer();
     }
+    return makeBatFileName;
+};
 
-    // Main
+void CMainDlg::ReadTemplatesList(bool updateSelected)
+{
+    lbTemplates.SetFocus();
 
-    CString& TrimTemplateExt(CString &templateName)
+    CString mask = _T(".\\*");
+    mask += TEMPLATE_EXT;
+    CFindFile finder;
+    if (finder.FindFile(mask))
     {
-        int newSize = templateName.GetLength() - _countof(TEMPLATE_EXT) + 1;
-        if (newSize >= 0)
+        do
         {
-            templateName.GetBufferSetLength(newSize);
-            templateName.ReleaseBuffer();
-        }
-        return templateName;
-    }
-
-    CString& TrimMakeBatExt(CString &makeBatFileName)
-    {
-        int newSize = makeBatFileName.GetLength() - _countof(MAKEBAT_EXT) + 1;
-        if (newSize >= 0)
-        {
-            makeBatFileName.GetBufferSetLength(newSize);
-            makeBatFileName.ReleaseBuffer();
-        }
-        return makeBatFileName;
-    }
-
-    void InitFilesList()
-    {
-        CListBox lb(GetDlgItem(IDC_FILES));
-        lb.SetFocus();
-
-        CString mask = _T(".\\*");
-        mask += TEMPLATE_EXT;
-        CFindFile finder;
-        if (finder.FindFile(mask))
-        {
-            do
+            if (!(finder.IsDots() || finder.IsDirectory()))
             {
-                if (!(finder.IsDots() || finder.IsDirectory()))
-                {
-                    CString s(TrimTemplateExt(finder.GetFileName()));
-                    s = _T("* ") + s;
-                    if (lb.FindStringExact(0, s) == LB_ERR)
-                        lb.AddString(s);
-                }
-            } while (finder.FindNextFile());
-        }
-
-        CModulePath path;
-        mask = path + TEMPLATES_SUB_FOLDER + _T('*') + TEMPLATE_EXT;
-        if (finder.FindFile(mask))
-        {
-            do
-            {
-                if (!(finder.IsDots() || finder.IsDirectory()))
-                {
-                    CString s(TrimTemplateExt(finder.GetFileName()));
-                    // Проверяем на дубликат, так как в папке исходника может быть шаблон с именем,
-                    // с которым есть и в папке шаблонов. Использоваться все равно будет тот что в
-                    // папке исходников, так как не используется полный путь к шаблону а только название
-                    if (lb.FindStringExact(0, s) == LB_ERR)
-                        lb.AddString(s);
-                }
-            } while (finder.FindNextFile());
-        }
-
-        if (lb.GetCount() > 0)
-        {
-            bool selected;
-            CString name(FindTemplateNameInMakeBatContent(ReadMakeBatContent(CString(templateNameStoreFileName))));
-            if (!name.IsEmpty())
-                selected = TrySelectTemplateInList(_T("* ") + name) || TrySelectTemplateInList(name);
-        }
+                CString s(TrimTemplateExt(finder.GetFileName()));
+                s = USER_DEFINED_PREFIX + s;
+                if (lbTemplates.FindStringExact(0, s) == LB_ERR)
+                    lbTemplates.AddString(s);
+            }
+        } while (finder.FindNextFile());
     }
 
-    CString ReadMakeBatContent(CString &path)
+    CModulePath path;
+    mask = path + TEMPLATES_SUB_FOLDER + _T('*') + TEMPLATE_EXT;
+    if (finder.FindFile(mask))
     {
-        if (!path.IsEmpty())
+        do
         {
-            CFile file;
-            if (file.Open(path))
+            if (!(finder.IsDots() || finder.IsDirectory()))
             {
-                DWORD size = file.GetSize();
-                if (size > 1024)
-                    size = 1024;  // TODO Magic number
-                char buff[1024];
-
-                if (file.Read(buff, size))
+                CString s(TrimTemplateExt(finder.GetFileName()));
+                // Проверяем на дубликат, так как в папке исходника может быть шаблон с именем,
+                // с которым есть и в папке шаблонов. Использоваться все равно будет тот что в
+                // папке исходников, так как не используется полный путь к шаблону а только название
+                if (lbTemplates.FindStringExact(0, USER_DEFINED_PREFIX + s) == LB_ERR &&
+                    lbTemplates.FindStringExact(0, s) == LB_ERR)
                 {
-                    #ifdef _UNICODE
-                        ATL::CA2W wbuff(buff);
-                        return CString(wbuff);
-                    #else
-                        return CString(buff);
-                    #endif
+                    lbTemplates.AddString(s);
                 }
             }
-        }
-        return CString();
+        } while (finder.FindNextFile());
     }
 
-    CString FindTemplateNameInMakeBatContent(CString &content)
+    if (updateSelected && lbTemplates.GetCount() > 0)
     {
-        if (!content.IsEmpty())
-        {
-            // TODO Dont use std::string and std::regex
-            #ifdef _UNICODE
-                std::wstring s_(content);
-                std::wsmatch m;
-                std::wregex r(REGEX_TEMPLATE_NAME);
-            #else
-                std::string s_(content);
-                std::smatch m;
-                std::regex r(REGEX_TEMPLATE_NAME);
-            #endif
-            if (std::regex_search(s_, m, r) && m.size() == 2)
-            {
-                s_ = m[1];
-                return CString(s_.c_str());
-            }
-        }
-        return CString();
-    }
-
-    bool TrySelectTemplateInList(CString &name)
-    {
-        CListBox lb(GetDlgItem(IDC_FILES));
-        if (lb.GetCount() > 0)
-        {
-            int index = lb.FindStringExact(0, name);
-            if (index != LB_ERR)
-            {
-                lb.SetCurSel(index);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    CString GetSelected(bool *isStandart = NULL)
-    {
-        if (isStandart)
-            *isStandart = false;
-        CListBox lb(GetDlgItem(IDC_FILES));
-        int index = lb.GetCurSel();
-        if (index >= 0)
-        {
-            CString s;
-            lb.GetText(index, s.GetBufferSetLength(lb.GetTextLen(index)));
-            s.ReleaseBuffer();
-            if (!s.IsEmpty())
-            {
-                bool b = s[0] == _T('*');
-                if (b)
-                {
-                    s.SetAt(0, _T(' '));
-                    s.TrimLeft();
-                }
-                if (isStandart)
-                    *isStandart = !b;
-                return s;
-            }
-        }
-        return CString();
-    }
-
-    void ProcessSelectedTemplate()
-    {
-        CListBox lb(GetDlgItem(IDC_FILES));
-        int index = lb.GetCurSel();
-        if (index >= 0)
-        {
-            CString s(GetSelected());
-            if (!s.IsEmpty())
-            {
-                s = _T("rem MakeBat-Template: \"") + s + _T("\"\n");
-
-                CFile file;
-                #ifdef _UNICODE
-                    ATL::CW2A asci(s);
-                    if (file.Create(templateNameStoreFileName) && file.Write(asci, strlen(asci)))
-                #else
-                    if (file.Create(templateNameStoreFileName) && file.Write(s, s.GetLength()))
-                #endif
-                {
-                    CloseDialog(RESULT_OK);
-                }
-                else
-                {
-                    ::MessageBox(NULL, RESULT_MESSAGE[RESULT_ERROR_CANT_CREATE_TEMPLATE_NAME_STORE], _T("Error"), MB_ICONERROR | MB_OK);
-                    CloseDialog(RESULT_ERROR_CANT_CREATE_TEMPLATE_NAME_STORE);
-                }
-            }
-        }
-    }
-
-    CString TemplateNameToPath(CString &name, bool isStandart)
-    {
+        CString name(FindTemplateNameInMakeBatContent(ReadMakeBatContent(CString(templateStoreFileName))));
         if (!name.IsEmpty())
-        {
-            if (isStandart)
-            {
-                CModulePath path;
-                return CString(path + TEMPLATES_SUB_FOLDER + name + TEMPLATE_EXT);
-            }
-            else
-                return CString(name + TEMPLATE_EXT);
-        }
-        return CString();
-    }
-
-    bool TryCopyStandartTemplate()
-    {
-        bool isStandart;
-        CString stdName(GetSelected(&isStandart));
-        if (!stdName.IsEmpty() && isStandart)
-        {
-            CString stdPath = TemplateNameToPath(stdName, true);
-            if (!stdPath.IsEmpty())
-            {
-                CString pathTo(TrimMakeBatExt(CString(templateNameStoreFileName)) + _T(" - ") + stdName);
-                pathTo = TemplateNameToPath(pathTo, false);
-                return !pathTo.IsEmpty() && CopyFile(stdPath, pathTo, FALSE);  // TODO Rewrite MsgBox!
-            }
-        }
-        return false;
+            TrySelectTemplateInList(USER_DEFINED_PREFIX + name) || TrySelectTemplateInList(name);
     }
 };
 
-int Run(LPTSTR /*lpstrCmdLine*/ = NULL, int nCmdShow = SW_SHOWDEFAULT)
+CString CMainDlg::ReadMakeBatContent(CString &path)
 {
-    CMessageLoop theLoop;
-    _Module.AddMessageLoop(&theLoop);
-    CMainDlg dlgMain;
-    if (dlgMain.Create(NULL) == NULL)
-        return 0;
-    dlgMain.ShowWindow(nCmdShow);
-    int nRet = theLoop.Run();
-    _Module.RemoveMessageLoop();
-    return nRet;
-}
+    if (!path.IsEmpty())
+    {
+        CFile file;
+        if (file.Open(path))
+        {
+            DWORD size = file.GetSize();
+            if (size > 1024)
+                size = 1024;  // TODO Magic number
+            char buff[1024];
 
-int WINAPI _tWinMain(HINSTANCE hInstance,
-    HINSTANCE /*hPrevInstance*/,
-    LPTSTR lpstrCmdLine,
-    int nCmdShow)
+            if (file.Read(buff, size))
+            {
+                #ifdef _UNICODE
+                    ATL::CA2W wbuff(buff);
+                    return CString(wbuff);
+                #else
+                    return CString(buff);
+                #endif
+            }
+        }
+    }
+    return CString();
+};
+
+CString CMainDlg::FindTemplateNameInMakeBatContent(CString &content)
+{
+    if (!content.IsEmpty())
+    {
+        // TODO Dont use std::string and std::regex
+        #ifdef _UNICODE
+            std::wstring s_(content);
+            std::wsmatch m;
+            std::wregex r(REGEX_TEMPLATE_NAME);
+        #else
+            std::string s_(content);
+            std::smatch m;
+            std::regex r(REGEX_TEMPLATE_NAME);
+        #endif
+        if (std::regex_search(s_, m, r) && m.size() == 2)
+        {
+            s_ = m[1];
+            return CString(s_.c_str());
+        }
+    }
+    return CString();
+};
+
+bool CMainDlg::TrySelectTemplateInList(CString &name)
+{
+    if (lbTemplates.GetCount() > 0)
+    {
+        int index = lbTemplates.FindStringExact(0, name);
+        if (index != LB_ERR)
+        {
+            lbTemplates.SetCurSel(index);
+            return true;
+        }
+    }
+    return false;
+};
+
+CString CMainDlg::GetSelectedFull()
+{
+    int index = lbTemplates.GetCurSel();
+    if (index >= 0)
+    {
+        CString s;
+        lbTemplates.GetText(index, s.GetBufferSetLength(lbTemplates.GetTextLen(index)));
+        s.ReleaseBuffer();
+        return s;
+    }
+    return CString();
+};
+
+CString CMainDlg::GetSelected(bool *isUserDefined)
+{
+    if (isUserDefined)
+        *isUserDefined = false;
+    int index = lbTemplates.GetCurSel();
+    if (index >= 0)
+    {
+        CString s;
+        lbTemplates.GetText(index, s.GetBufferSetLength(lbTemplates.GetTextLen(index)));
+        s.ReleaseBuffer();
+        if (!s.IsEmpty())
+        {
+            CString prefix(s.Left(_countof(USER_DEFINED_PREFIX) - 1));
+            if (prefix == USER_DEFINED_PREFIX)
+            {
+                if (isUserDefined)
+                    *isUserDefined = true;
+                return s.Mid(_countof(USER_DEFINED_PREFIX) - 1);
+            }
+            return s;
+        }
+    }
+    return CString();
+};
+
+void CMainDlg::ProcessSelectedTemplate()
+{
+    CString s(GetSelected());
+    if (!s.IsEmpty())
+    {
+        s.Format(TEMPLATE_IN_STORE, s);
+        CFile file;
+    #ifdef _UNICODE
+        ATL::CW2A asci(s);
+        bool ok = file.Create(templateStoreFileName) && file.Write(asci, strlen(asci));
+    #else
+        bool ok = file.Create(templateStoreFileName) && file.Write(s, s.GetLength());
+    #endif
+        CloseDialog(ok ? RESULT_OK : ERROR_CANT_CREATE_TEMPLATE_STORE);
+    }
+};
+
+CString CMainDlg::GetTemplatePath(const CString &name, bool isUserDefined)
+{
+    if (name.IsEmpty())
+        return CString();
+    if (isUserDefined)
+        return CString(name + TEMPLATE_EXT);
+    else
+    {
+        CModulePath path;
+        return CString(path + TEMPLATES_SUB_FOLDER + name + TEMPLATE_EXT);
+    }
+};
+
+bool CMainDlg::TryCopyStandartTemplate()
+{
+    bool isUserDefined;
+    CString name(GetSelected(&isUserDefined));
+    if (!(name.IsEmpty() || isUserDefined))
+    {
+        CString path = GetTemplatePath(name, false);
+        if (!path.IsEmpty())
+        {
+            CString pathTo;
+            pathTo.Format(COPIED_TEMPLATE_NAME, name);
+            pathTo = GetTemplatePath(pathTo, true);
+            return !pathTo.IsEmpty() && CopyFile(path, pathTo, FALSE);  // TODO 'Rewrite' MsgBox!
+        }
+    }
+    return false;
+};
+
+//
+//  Main
+//
+
+int WINAPI _tWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, LPTSTR /*cmdLine*/, int cmdShow)
 {
     if (__argc != 2)
     {
-        ::MessageBox(NULL, RESULT_MESSAGE[RESULT_ERROR_EMPTY_PARAM_TEMPLATE_NAME_STORE], _T("Error"), MB_ICONERROR | MB_OK);
-        return RESULT_ERROR_EMPTY_PARAM_TEMPLATE_NAME_STORE;
+        ShowError(ERROR_NOT_SPECIFIED_TEMPLATE_STORE);
+        return ERROR_NOT_SPECIFIED_TEMPLATE_STORE;
     }
 
 #ifdef _UNICODE
-    templateNameStoreFileName = __wargv[1];
+    templateStoreFileName = __wargv[1];
 #else
-    templateNameStoreFileName = __argv[1];
+    templateStoreFileName = __argv[1];
 #endif
 
     // this resolves ATL window thunking problem when Microsoft Layer for Unicode (MSLU) is used
@@ -451,7 +416,17 @@ int WINAPI _tWinMain(HINSTANCE hInstance,
     AtlInitCommonControls(ICC_BAR_CLASSES);
     HRESULT hRes = _Module.Init(NULL, hInstance);
     ATLASSERT(SUCCEEDED(hRes));
-    int nRet = Run(lpstrCmdLine, nCmdShow);
+    CMessageLoop loop;
+    _Module.AddMessageLoop(&loop);
+    CMainDlg dlgMain;
+    if (dlgMain.Create(NULL) == NULL)
+    {
+        ShowError(ERROR_UNKNOWN);
+        return ERROR_UNKNOWN;
+    }
+    dlgMain.ShowWindow(cmdShow);
+    int code = loop.Run();
+    _Module.RemoveMessageLoop();
     _Module.Term();
-    return nRet;
+    return code;
 }

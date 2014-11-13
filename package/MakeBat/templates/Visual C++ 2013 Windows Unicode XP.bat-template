@@ -1,4 +1,3 @@
-@rem MakeBat-Template: "Visual C++ 2013 Windows Unicode XP"
 @echo off
 
 :: Base
@@ -16,10 +15,10 @@ call "%VS120COMNTOOLS%\vsvars32.bat"
 if errorlevel 1 goto :EOF
 
 :: Resources
-FOR %%a IN ("selector.rc") DO (
+FOR %%a IN ({RESOURCES}) DO (
 rc.exe /D NDEBUG %%a
 if errorlevel 1 goto :EOF
 )
 
 ::Compile
-cl.exe %CL_PARAMS% "/O1" /I "3rd\wtl" "selector.cpp" "selector.res" /link %LINK_PARAMS%    && del *.obj && del *.res
+cl.exe %CL_PARAMS% {CL_PARAMS} {INCLUDE_PATHS} {SOURCES} /link %LINK_PARAMS% {LINK_PARAMS} {LIBS} {LIB_PATHS} && del *.obj && del *.res

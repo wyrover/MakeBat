@@ -1,4 +1,0 @@
-@echo off
-
-path c:\mingw32\bin\;%PATH%
-g++.exe {SOURCES} -O2 -std=c++0x -s -static

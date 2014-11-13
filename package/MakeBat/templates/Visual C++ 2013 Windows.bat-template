@@ -1,0 +1,24 @@
+@echo off
+
+:: Base
+set CL_PARAMS=/W3 /O2 /Oi /GL /GF /GS /MT /EHsc /D "NDEBUG" /D "WIN32" /D "_WINDOWS"
+set LINK_PARAMS=/LTCG /OPT:REF /OPT:ICF /DYNAMICBASE /NXCOMPAT /SUBSYSTEM:WINDOWS /SAFESEH /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /manifestdependency:"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+
+
+
+
+
+
+
+:: Prepare compiler
+call "%VS120COMNTOOLS%\vsvars32.bat"
+if errorlevel 1 goto :EOF
+
+:: Resources
+FOR %%a IN ({RESOURCES}) DO (
+rc.exe /D NDEBUG %%a
+if errorlevel 1 goto :EOF
+)
+
+::Compile
+cl.exe %CL_PARAMS% {CL_PARAMS} {INCLUDE_PATHS} {SOURCES} /link %LINK_PARAMS% {LINK_PARAMS} {LIBS} {LIB_PATHS} && del *.obj && del *.res

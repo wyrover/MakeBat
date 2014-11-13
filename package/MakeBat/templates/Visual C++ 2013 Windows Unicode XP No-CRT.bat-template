@@ -1,0 +1,24 @@
+@echo off
+
+:: Base
+set CL_PARAMS=/W3 /O1 /GL /GF /GS- /MT /EHa- /D "NDEBUG" /D "WIN32" /D "_WINDOWS" /D "_UNICODE" /D "UNICODE" /D NOCRT
+set LINK_PARAMS=/LTCG /OPT:REF /OPT:ICF /DYNAMICBASE:NO /NXCOMPAT:NO /SUBSYSTEM:WINDOWS,5.01 /FIXED /NODEFAULTLIB /MERGE:.rdata=.text /ENTRY:main
+
+:: XP
+set SDK71PATH=%ProgramFiles%\Microsoft SDKs\Windows\7.1A
+path %SDK71PATH%\Bin;%PATH%
+set CL_PARAMS=%CL_PARAMS% /D_USING_V110_SDK71_ /I "%SDK71PATH%\Include"
+set LINK_PARAMS=%LINK_PARAMS% /LIBPATH:"%SDK71PATH%\Lib"
+
+:: Prepare compiler
+call "%VS120COMNTOOLS%\vsvars32.bat"
+if errorlevel 1 goto :EOF
+
+:: Resources
+FOR %%a IN ({RESOURCES}) DO (
+rc.exe /D NDEBUG %%a
+if errorlevel 1 goto :EOF
+)
+
+::Compile
+cl.exe %CL_PARAMS% {CL_PARAMS} {INCLUDE_PATHS} {SOURCES} /link %LINK_PARAMS% {LINK_PARAMS} {LIBS} {LIB_PATHS} && del *.obj && del *.res

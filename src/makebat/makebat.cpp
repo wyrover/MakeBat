@@ -1,7 +1,7 @@
 //
 // Project: MakeBat
 // Date:    2014-02-17
-// Author:  Ruzzz | ruzzzua[]gmail.com
+// Author:  Ruslan Zaporojets | ruzzzua[]gmail.com
 //
 
 // ADD_RESOURCE: "makebat.rc"
@@ -15,9 +15,79 @@
 
 #include <windows.h>
 #include <shellapi.h>
+
 #pragma comment(lib, "shell32.lib")
 
 using namespace std;
+
+//
+//  Defs
+//
+
+const char HELLO[] = "MakeBat v0.5a [2014/11/10] by Ruslan Zaporojets\n";
+const char USAGE[] =
+{
+    "Create -make.bat from template file\n"
+    "Usage: makebat source-file [-t]\n"
+    "Option '-t' - run selector before make.\n"
+};
+
+const char TEMPLATE_SELECTOR_FILENAME[] = "selector.exe";
+const char TEMPLATES_SUB_FOLDER[] = "templates\\";
+const char TEMPLATE_EXT[] = ".bat-template";
+const char DEFAULT_MAKE_EXT[] = "-make.bat";
+const int SELECTOR_OK = 0;
+const int SELECTOR_CANCEL = 1;
+
+// TODO Invalid chars "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\\/:*?\"<>|"
+const char REGEX_TEMPLATE_NAME[] = "MakeBat-Template[ \\t]*:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+
+const char REGEX_INCLUDE_PATH[] = "^[ \\t]*//[ \\t]*INCLUDE_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+const char REGEX_LIB_PATH[]     = "^[ \\t]*//[ \\t]*LIB_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+const char REGEX_LIB[]          = "^[ \\t]*\\#pragma[ \\t]+comment[ \\t]*\\([ \\t]*lib[ \\t]*,[ \\t]*\"(\\w+\\.lib)\"[ \\t]*\\)[ \\t]*";
+const char REGEX_SOURCE[]       = "^[ \\t]*//[ \\t]*ADD_SOURCE:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+const char REGEX_RESOURCE[]     = "^[ \\t]*//[ \\t]*ADD_RESOURCE:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+const char REGEX_CL_PARAMS[]    = "^[ \\t]*//[ \\t]*CL_PARAMS:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+const char REGEX_LINK_PARAMS[]  = "^[ \\t]*//[ \\t]*LINK_PARAMS:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
+
+const char VAR_INCLUDE_PATHS[] = "{INCLUDE_PATHS}";
+const char VAR_LIB_PATHS[]     = "{LIB_PATHS}";
+const char VAR_LIBS[]          = "{LIBS}";
+const char VAR_SOURCES[]       = "{SOURCES}";
+const char VAR_RESOURCES[]     = "{RESOURCES}";
+const char VAR_CL_PARAMS[]     = "{CL_PARAMS}";
+const char VAR_LINK_PARAMS[]   = "{LINK_PARAMS}";
+const char VAR_OUT[]           = "{OUT}";
+
+enum
+{
+    RESULT_OK = 0,
+    RESULT_CANCEL,
+    RESULT_ERROR_UNKNOWN,
+    RESULT_ERROR_CANNOT_RUN_SELECTOR,
+    RESULT_ERROR_CANNOT_READ_MAKE_BAT,
+    RESULT_ERROR_TEMPLATE_NAME_IN_MAKE_BAT,
+    RESULT_ERROR_CANNOT_READ_CPP,
+    RESULT_ERROR_CANNOT_READ_TEMPLATE,
+    RESULT_ERROR_CANNOT_WRITE_RESULT,
+    RESULT_ERROR_TEMPLATE_TAG_SOURCES
+};
+
+const char *MESSAGE[] =
+{
+    "Created: ",
+    "User cancel.",
+    "Internal error: ",
+    "Error. Cannot run selector: ",
+    "Error. Cannot read make-bat file: ",
+    "Error. Make-bat file does not contain 'MakeBat-Template': ",
+    "Error. Cannot read source file: ",
+    "Error. Cannot read template file: ",
+    "Error. Cannot write make-bat file: ",
+    "Error. Template does not contain tag {SOURCES}: "
+};
+
+typedef void (*TParserFunc)(string &result, const string &element);
 
 //
 //  Helpers
@@ -184,65 +254,6 @@ bool writeString(const char *fileName, const string &content)
 //  Core
 //
 
-const char USAGE[] =
-{
-    "Create -make.bat uses template file\n"
-    "Usage: makebat source-file [-t]\n"
-    "Option '-t' - run selector before make.\n"
-};
-
-const char TEMPLATE_SELECTOR_FILENAME[] = "selector.exe";
-const char TEMPLATES_SUB_FOLDER[] = "templates\\";
-const char TEMPLATE_EXT[] = ".bat-template";
-const char DEFAULT_MAKE_EXT[] = "-make.bat";
-const int SELECTOR_OK = 0;
-const int SELECTOR_CANCEL = 1;
-
-// TODO Invalid chars "\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1A\x1B\x1C\x1D\x1E\x1F\\/:*?\"<>|"
-const char REGEX_TEMPLATE_NAME[] = "MakeBat-Template[ \\t]*:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
-
-const char REGEX_INCLUDE_PATH[] = "^[ \\t]*//[ \\t]*INCLUDE_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
-const char REGEX_LIB_PATH[]     = "^[ \\t]*//[ \\t]*LIB_PATH:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
-const char REGEX_LIB[]          = "^[ \\t]*\\#pragma[ \\t]+comment[ \\t]*\\([ \\t]*lib[ \\t]*,[ \\t]*\"(\\w+\\.lib)\"[ \\t]*\\)[ \\t]*";
-const char REGEX_SOURCE[]       = "^[ \\t]*//[ \\t]*ADD_SOURCE:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
-const char REGEX_RESOURCE[]     = "^[ \\t]*//[ \\t]*ADD_RESOURCE:[ \\t]*\"([^\\t:*?\"<>|\\r\\n]+)\"[ \\t]*";
-
-const char VAR_INCLUDE_PATHS[] = "{INCLUDE_PATHS}";
-const char VAR_LIB_PATHS[]     = "{LIB_PATHS}";
-const char VAR_LIBS[]          = "{LIBS}";
-const char VAR_SOURCES[]       = "{SOURCES}";
-const char VAR_RESOURCES[]     = "{RESOURCES}";
-
-enum
-{
-    RESULT_OK = 0,
-    RESULT_CANCEL,
-    RESULT_ERROR_UNKNOWN,
-    RESULT_ERROR_CANNOT_RUN_SELECTOR,
-    RESULT_ERROR_CANNOT_READ_MAKE_BAT,
-    RESULT_ERROR_TEMPLATE_NAME_IN_MAKE_BAT,
-    RESULT_ERROR_CANNOT_READ_CPP,
-    RESULT_ERROR_CANNOT_READ_TEMPLATE,
-    RESULT_ERROR_CANNOT_WRITE_RESULT,
-    RESULT_ERROR_TEMPLATE_TAG_SOURCES
-};
-
-const char *MESSAGE[] =
-{
-    "Created: ",
-    "User cancel.",
-    "Internal error: ",
-    "Error. Cannot run selector: ",
-    "Error. Cannot read make-bat file: ",
-    "Error. Make-bat file does not contain 'MakeBat-Template': ",
-    "Error. Cannot read source file: ",
-    "Error. Cannot read template file: ",
-    "Error. Cannot write make-bat file: ",
-    "Error. Template does not contain tag {SOURCES}: "
-};
-
-typedef void (*TParserFunc)(string &result, const string &element);
-
 void collectorRes(string &result, const string &element)
 {
     if (!result.empty())
@@ -312,7 +323,7 @@ return false;
 
 int main(int argc, char const *argv[])
 {
-    cout << "MakeBat v0.5a [2014/11/10] by Ruslan Zaporojets\n";
+    cout << HELLO;
 
     if (argc < 2 || argc > 3 || (argc == 3 && !CHECK_ARG__T))
     {
@@ -415,6 +426,26 @@ int main(int argc, char const *argv[])
             string value(parseSource(sourceContent, regex(REGEX_RESOURCE)));
             replace(templateContent, VAR_RESOURCES, value);
             resources = parseSourceEx(sourceContent, regex(REGEX_RESOURCE), collectorRes);
+        }
+
+        // Parse: // CL_PARAMS: "..."
+        if (hasSubstr(templateContent, VAR_CL_PARAMS))
+        {
+            string value(parseSource(sourceContent, regex(REGEX_CL_PARAMS)));
+            replace(templateContent, VAR_CL_PARAMS, value);
+        }
+
+        // Parse: // LINK_PARAMS: "..."
+        if (hasSubstr(templateContent, VAR_LINK_PARAMS))
+        {
+            string value(parseSource(sourceContent, regex(REGEX_LINK_PARAMS)));
+            replace(templateContent, VAR_LINK_PARAMS, value);
+        }
+
+        // {OUT} -> source_name_without_ext
+        if (hasSubstr(templateContent, VAR_OUT))
+        {
+            replace(templateContent, VAR_OUT, changeExt(sourceFileName, ""));
         }
 
         // Parse: // ADD_SOURCE: "name.cpp"

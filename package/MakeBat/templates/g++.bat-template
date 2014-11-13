@@ -1,0 +1,4 @@
+@echo off
+
+path %MINGW32%\bin\;%PATH%
+g++.exe {SOURCES} -o "{OUT}.exe" -O2 -std=c++0x -s -static
